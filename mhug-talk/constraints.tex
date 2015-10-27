@@ -1,0 +1,191 @@
+% Note on compiling: requires external programs dot (from the graphvix package
+% on Debian/Ubuntu) and dot2tex.
+% You need to pass the --shell-escape option to pdflatex
+% (or use the Makefile, which required latexmk).
+%\documentclass[aspectratio=169,handout]{beamer}
+%\documentclass[aspectratio=169,handout,hyphens]{beamer} % hyphens option for url package which beamer loads.
+\documentclass[aspectratio=169,hyphens]{beamer} % hyphens option for url package which beamer loads.
+
+\def\UrlFont{\small\tt}
+
+\usepackage{minted}
+\usepackage{color}
+%\usepackage[pgf,dot]{dot2texi}
+%\usepackage{tikz}
+%\usetikzlibrary{shapes,arrows}
+
+\usetheme{Pittsburgh}
+\usecolortheme{beaver}
+% \useoutertheme{infolines}
+
+\title{Constraint Programming in Haskell}
+\subtitle{Melbourne Haskell Users Group}
+\author{David Overton}
+\date{29 October 2015}
+
+\AtBeginSection[]
+{
+	\begin{frame}
+		\frametitle{Table of Contents}
+		\tableofcontents[currentsection]
+	\end{frame}
+}
+
+%\lstnewenvironment{code}{\lstset{language=Haskell,basicstyle=\small}}{}
+
+\newminted[code]{haskell}{fontsize=\small}
+\newmint[hask]{haskell}{fontsize=\small}
+\newminted{prolog}{fontsize=\small}
+
+\definecolor{mygreen}{rgb}{0,0.6,0}
+\definecolor{mygrey}{rgb}{0.5,0.5,0.5}
+\definecolor{mymauve}{rgb}{0.58,0,0.82}
+
+\newtheorem{observation}[theorem]{Observation}
+
+\newcommand\myheading[1]{%
+  \par\bigskip
+  {\large\color{blue}#1}\par\smallskip}
+\begin{document}
+
+\frame{\titlepage}
+
+\section{Constraint programming}
+
+\begin{frame}
+    \frametitle{Constraint programming}
+    Constraint programming is a declarative programming paradigm for solving constraint satisfaction problems.
+    \pause
+    \begin{itemize}
+        \item A set of \emph{constraint variables} over a \emph{domain}, e.g. Booleans, integers, reals, finite domain.
+        \item A set of \emph{constraints} between those variables.
+        \item A \emph{solver} to find solutions to the constraints, i.e. assignments of variables to values in the domain such that all constraints are satisfied.
+    \end{itemize}
+    \pause
+    Applications: planning, scheduling, resource allocation, computer graphics, digital circuit design, programming language analysis, \ldots
+\end{frame}
+
+\section{Constraint logic programming}
+
+\begin{frame}
+    \frametitle{Constraint logic programming}
+    \begin{itemize}
+        \item Constraint programming and logic programming work well together.
+        \item Many Prolog implementations have built in constraint solvers.
+        \item Basic idea:
+            \begin{itemize}
+                \item add constraints to the constraint store
+                \item constraint solver works behind the scenes to propagate constraints
+                \item Prolog's backtracking search mechanism to generate solutions
+            \end{itemize}
+        \item Advantages over pure logic programming:
+            \begin{itemize}
+                \item ``constrain-and-generate'' rather than ``generate-and-test''
+                \item constraint solver can greatly reduce the search space required compared to Prolog's built-in depth-first-search
+                \item much more powerful than relying on just unification and backtracking
+            \end{itemize}
+    \end{itemize}
+\end{frame}
+
+\section{Finite domain constraints}
+
+\begin{frame}[fragile]
+    \frametitle{Finite domain constraints}
+
+\begin{prologcode}
+n_queens(N, Qs) :-
+        length(Qs, N),
+        Qs ins 1..N,
+        safe_queens(Qs).
+
+safe_queens([]).
+safe_queens([Q|Qs]) :- safe_queens(Qs, Q, 1), safe_queens(Qs).
+
+safe_queens([], _, _).
+safe_queens([Q|Qs], Q0, D0) :-
+        Q0 #\= Q,
+        abs(Q0 - Q) #\= D0,
+        D1 #= D0 + 1,
+        safe_queens(Qs, Q0, D1).
+\end{prologcode}
+
+\end{frame}
+
+\section{Constraint programming in Haskell}
+
+\begin{frame}[fragile]
+    \frametitle{Constraint programming in Haskell}
+How can we do something similar in Haskell?\pause{}
+\textbf{Use a monad!}
+\pause
+\begin{itemize}
+    \item List monad provides backtracking / search / multiple solutions.
+        \pause
+    \item Wrap it in a state monad transformer to keep track of the constraint store.
+        \pause
+\end{itemize}
+\begin{code}
+-- The FD monad
+newtype FD s a = FD { unwrapFD :: StateT (FDState s) [] a }
+    deriving (Monad, MonadPlus, MonadState (FDState s))
+\end{code}
+\pause
+\begin{code}
+-- Convenient alias for constraint type
+type FDConstraint s = FD s ()
+\end{code}
+\pause
+\begin{code}
+-- Run the FD monad and produce a lazy list of possible solutions.
+runFD :: (forall s . FD s a) -> [a]
+runFD fd = evalStateT (unwrapFD fd) initState
+\end{code}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{code}
+-- FD variables
+newtype FDVar s = FDVar { unFDVar :: Int } deriving (Ord, Eq)
+
+type VarSupply s = FDVar s
+
+data Domain
+    = Set IntSet
+    | Range Int Int
+
+data VarInfo s = VarInfo
+     { delayedConstraints :: FD s (), domain :: Domain }
+
+type VarMap s = Map (FDVar s) (VarInfo s)
+
+data FDState s = FDState
+     { varSupply :: VarSupply s, varMap :: VarMap s }
+
+initState :: FDState s
+initState = FDState { varSupply = FDVar 0, varMap = Map.empty }
+\end{code}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{code}
+nQueens :: Int -> FD s [FDVar s]
+nQueens n = do
+    qs <- newVars n (1, n)
+    safeQueens qs
+    return qs
+
+safeQueens :: [FDVar s] -> FDConstraint s
+safeQueens [] = return ()
+safeQueens (q : qs) = safeQueen qs q 1 >> safeQueens qs
+
+safeQueen :: [FDVar s] -> FDVar s -> Int -> FDConstraint s
+safeQueen [] _ _ = return ()
+safeQueen (q : qs) q0 d = do
+   q0 ./=. q 
+   q ./=. q0 .+. d
+   q ./=. q0 .-. d
+   safeQueen qs q0 (d + 1)
+\end{code}
+\end{frame}
+
+\end{document}
