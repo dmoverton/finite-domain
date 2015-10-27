@@ -17,7 +17,7 @@ safeQueens (q : qs) = do
 safeQueen :: [FDVar s] -> FDVar s -> Int -> FDConstraint s
 safeQueen [] _ _ = return ()
 safeQueen (q : qs) q0 d = do
-   q0 ./=. q 
-   q ./=. q0 .+. d
-   q ./=. q0 .-. d
+   q0 #\= q 
+   q #\= q0 #+ d
+   q #\= q0 #- d
    safeQueen qs q0 (d + 1)

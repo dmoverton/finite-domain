@@ -20,15 +20,17 @@ module FD (
     same,         -- Constrain two FDVars to be the same
     different,    -- Constrain two FDVars to be different
     allDifferent, -- Constrain a list of FDVars to be different
-    (.<.),        -- Constrain one FDVar to be less than another
+    (#<),        -- Constrain one FDVar to be less than another
     labelling,    -- Backtracking search for all solutions
     solutions,
     dump,
-    (.==.),
-    (./=.),
-    (.*.),
-    (.+.),
-    (.-.),
+    (#==),
+    (#\=),
+    (#*),
+    (#+),
+    (#-),
+    Expr,
+    ToExpr(..),
     ) where
 
 import Prelude hiding (lookup)
@@ -160,9 +162,9 @@ allDifferent _ = return ()
 
 -- Constrain one variable to have a value less than the value of another
 -- variable.
-infix 4 .<.
-(.<.) :: FDVar s -> FDVar s -> FD s ()
-(.<.) = addBinaryConstraint $ \x y -> do
+infix 4 #<
+(#<) :: FDVar s -> FDVar s -> FD s ()
+(#<) = addBinaryConstraint $ \x y -> do
     xv <- lookup x
     yv <- lookup y
     let xv' = filterLessThan (findMax yv) xv
@@ -193,6 +195,14 @@ dump = mapM lookup
 
 newtype Expr s = Expr { unExpr :: FD s (FDVar s) }
 
+instance Num (Expr s) where
+    (+) = (#+)
+    (-) = (#-)
+    (*) = (#*)
+    abs = undefined
+    signum = undefined
+    fromInteger i = Expr $ newVar (n :: Int, n) where n = fromInteger i
+
 class ToExpr s a | a -> s where
     toExpr :: a -> Expr s
 
@@ -201,9 +211,6 @@ instance ToExpr s (FDVar s) where
 
 instance ToExpr s (Expr s) where
     toExpr = id
-
--- instance Integral i => ToExpr s i where
---    toExpr n = Expr $ newVar (n, n)
 
 exprVar :: ToExpr s a => a -> FD s (FDVar s)
 exprVar = unExpr . toExpr
@@ -239,18 +246,18 @@ addArithmeticConstraint getZDomain getXDomain getYDomain xexpr yexpr = Expr $ do
             guard $ not $ Domain.null znew
             when (znew /= zv) $ update z znew
 
-infixl 6 .+.
-(.+.) :: (ToExpr s a, ToExpr s b) => a -> b -> Expr s
-(.+.) = addArithmeticConstraint getDomainPlus getDomainMinus getDomainMinus
+infixl 6 #+
+(#+) :: (ToExpr s a, ToExpr s b) => a -> b -> Expr s
+(#+) = addArithmeticConstraint getDomainPlus getDomainMinus getDomainMinus
 
-infixl 6 .-.
-(.-.) :: (ToExpr s a, ToExpr s b) => a -> b -> Expr s
-(.-.) = addArithmeticConstraint getDomainMinus getDomainPlus
+infixl 6 #-
+(#-) :: (ToExpr s a, ToExpr s b) => a -> b -> Expr s
+(#-) = addArithmeticConstraint getDomainMinus getDomainPlus
     (flip getDomainMinus)
 
-infixl 7 .*.
-(.*.) :: (ToExpr s a, ToExpr s b) => a -> b -> Expr s
-(.*.) = addArithmeticConstraint getDomainMult getDomainDiv getDomainDiv
+infixl 7 #*
+(#*) :: (ToExpr s a, ToExpr s b) => a -> b -> Expr s
+(#*) = addArithmeticConstraint getDomainMult getDomainDiv getDomainDiv
 
 getDomainPlus :: Domain -> Domain -> Domain
 getDomainPlus xs ys = toDomain (zl, zh) where
@@ -278,16 +285,16 @@ getDomainDiv xs ys = toDomain (zl, zh) where
         x <- [findMin xs, findMax xs],
         y <- [findMin ys, findMax ys]]
 
-infix 4 .==.
-(.==.) :: (ToExpr s a, ToExpr s b) => a -> b -> FD s ()
-xexpr .==. yexpr = do
+infix 4 #==
+(#==) :: (ToExpr s a, ToExpr s b) => a -> b -> FD s ()
+xexpr #== yexpr = do
     x <- exprVar xexpr
     y <- exprVar yexpr
     x `same` y
 
-infix 4 ./=.
-(./=.) :: (ToExpr s a, ToExpr s b) => a -> b -> FD s ()
-xexpr ./=. yexpr = do
+infix 4 #\=
+(#\=) :: (ToExpr s a, ToExpr s b) => a -> b -> FD s ()
+xexpr #\= yexpr = do
     x <- exprVar xexpr
     y <- exprVar yexpr
     x `different` y

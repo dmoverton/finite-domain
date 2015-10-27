@@ -17,5 +17,5 @@ diagonals (x:xs) = do
 
 diag :: FDVar s -> FDVar s -> Int -> FD s ()
 diag x y n = do
-    y ./=. x .+. n
-    y ./=. x .-. n
+    y #\= x #+ fromIntegral n
+    y #\= x #- fromIntegral n

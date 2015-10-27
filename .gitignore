@@ -14,3 +14,14 @@ cabal.sandbox.config
 *.prof
 *.aux
 *.hp
+.stack-work/
+.*.swp
+*.fdb_latexmk
+*.fls
+*.log
+*.nav
+*.out
+*.pdf
+*.snm
+*.toc
+*.vrb

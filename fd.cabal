@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     FD, Domain, Sudoku
+  exposed-modules:     FD, Domain, Sudoku, Queens
   build-depends:       base >= 4.7 && < 5
                     , containers
                     , transformers
