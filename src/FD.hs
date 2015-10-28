@@ -199,6 +199,12 @@ data Expr
     | Negate Expr
     | Abs Expr
 
+new :: ToDomain a => a -> FD Expr
+new d = newVar d <&> Var
+
+news :: ToDomain a => Int -> a -> FD [Expr]
+news n d = replicateM n $ new d
+
 class ToExpr a where
     toExpr :: a -> Expr
 
