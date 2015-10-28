@@ -99,7 +99,7 @@ newVar d = do
 newVars :: ToDomain a => Int -> a -> FD [FDVar]
 newVars n d = replicateM n (newVar d)
 
--- Lookup the current domain of a variable.
+-- Look up the current domain of a variable.
 lookup :: FDVar -> FD Domain
 lookup x =
     use $ varMap . ix x . domain
@@ -247,7 +247,7 @@ interpretBinary op e0 e1 = do
     v <- newVar [n0 `op` n1 | n0 <- elems d0, n1 <- elems d1]
     let pc  = constrainBinary (\n n0 n1 -> n == n0 `op` n1) v v0 v1
         nc0 = constrainBinary (\n0 n n1 -> n == n0 `op` n1) v0 v v1
-        nc1 = constrainBinary (\n1 n n0 -> n == n0 `op` n1) v1 v v1
+        nc1 = constrainBinary (\n1 n n0 -> n == n0 `op` n1) v1 v v0
     addConstraint v0 $ pc >> nc1
     addConstraint v1 $ pc >> nc0
     addConstraint v  $ nc0 >> nc1

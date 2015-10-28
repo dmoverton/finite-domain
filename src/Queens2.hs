@@ -16,8 +16,8 @@ safeQueens (q : qs) = do
 
 safeQueen :: [FDExpr] -> FDExpr -> FDExpr -> FDConstraint
 safeQueen [] _ _ = return ()
-safeQueen (q : qs) q0 d = do
+safeQueen (q : qs) q0 d0 = do
    q0 #\= q 
-   q #\= q0 + d
-   q #\= q0 - d
-   safeQueen qs q0 (d + 1)
+   abs (q0 - q) #\= d0
+   d1 #== d0 + 1
+   safeQueen qs q0 d1

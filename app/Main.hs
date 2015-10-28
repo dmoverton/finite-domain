@@ -1,9 +1,12 @@
 module Main where
 
+import FD
 import Sudoku
+import Queens2
+import SendMoreMoney
 
-test :: Puzzle
-test = [
+testPuzzle :: Puzzle
+testPuzzle = [
     0, 0, 0, 0, 8, 0, 0, 0, 0,
     0, 0, 0, 1, 0, 6, 5, 0, 7,
     4, 0, 2, 7, 0, 0, 0, 0, 0,
@@ -40,4 +43,16 @@ hard2 = [
  
 
 
-main = printSudoku hard2
+main = do
+    putStrLn "Sudoku hard2"
+    printSudoku hard2
+    putStrLn "8 Queens"
+    print $ runFD $ nQueens 8 >>= labelling
+    test
+
+test = do
+    putStrLn "test"
+    print $ runFD $ do
+        vars@[a, b, c] <- news 3 (1, 9)
+        a #== b * c
+        labelling vars
