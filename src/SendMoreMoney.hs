@@ -4,20 +4,14 @@ import Control.Monad (guard)
 import FD
 
 sendMoreMoney = runFD $ do
-    vars@[s, e, n, d, m, o, r, y] <- newVars 8 (0, 9)
-    let
-        n0 = 0::Int
-        n10 = 10::Int
-        n100 = 100::Int
-        n1000 = 1000::Int
-        n10000 = 1000::Int
-    s #\= n0
-    m #\= n0
+    vars@[s, e, n, d, m, o, r, y] <- news 8 (0, 9)
+    s #\= 0
+    m #\= 0
     allDifferent vars
 
-    n1000 #* s #+ n100 #* e #+ n10 #* n #+ d
-       #+ n1000 #* m #+ n100 #* o #+ n10 #* r #+ e
-       #== n10000 #* m #+ n1000 #* o #+ n100 #* n #+ n10 #* e #+ y
+    1000 * s + 100 * e + 10 * n + d
+       + 1000 * m + 100 * o + 10 * r + e
+       #== 10000 * m + 1000 * o + 100 * n + 10 * e + y
 
     labelling vars
 

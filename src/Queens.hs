@@ -4,18 +4,18 @@ import Control.Monad (zipWithM_)
 import FD
 
 queens n = runFD $ do
-    vars <- newVars n (1, n)
+    vars <- news n (1, n)
     allDifferent vars
     diagonals vars
     labelling vars
     
-diagonals :: [FDVar] -> FDConstraint
+diagonals :: [FDExpr] -> FDConstraint
 diagonals [] = return ()
 diagonals (x:xs) = do
     zipWithM_ (diag x) xs [1..]
     diagonals xs
 
-diag :: FDVar -> FDVar -> Int -> FDConstraint
+diag :: FDExpr -> FDExpr -> FDExpr -> FDConstraint
 diag x y n = do
-    y #\= x #+ n
-    y #\= x #- n
+    y #\= x + n
+    y #\= x - n

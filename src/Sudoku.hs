@@ -20,10 +20,10 @@ sudoku :: Puzzle -> [Puzzle]
 sudoku puzzle = runFD $ do
     vars <- newVars 81 (1, 9)
     zipWithM_ (\x n -> when (n > 0) (x `hasValue` n)) vars puzzle
-    mapM_ allDifferent (rows vars)
-    mapM_ allDifferent (columns vars)
-    mapM_ allDifferent (boxes vars)
-    labelling vars
+    mapM_ varsAllDifferent (rows vars)
+    mapM_ varsAllDifferent (columns vars)
+    mapM_ varsAllDifferent (boxes vars)
+    varsLabelling vars
 
 rows, columns, boxes :: [a] -> [[a]]
 rows = chunk 9

@@ -9,28 +9,32 @@
 module FD (
     -- Types
     FD,           -- Monad for finite domain constraint solver
-    FDConstraint,
+    FDConstraint, -- Constraint
     FDVar,        -- Finite domain solver variable
+    FDExpr,       -- Constraint expression
 
-    -- Functions
+    -- Functions on FDVars
     runFD,        -- Run the monad and return a list of solutions.
     newVar,       -- Create a new FDVar
     newVars,      -- Create multiple FDVars
     hasValue,     -- Constrain a FDVar to a specific value
     same,         -- Constrain two FDVars to be the same
     different,    -- Constrain two FDVars to be different
-    allDifferent, -- Constrain a list of FDVars to be different
-    labelling,    -- Backtracking search for all solutions
+    varsAllDifferent, -- Constrain a list of FDVars to be different
+    varsLabelling,    -- Backtracking search for all solutions
     solutions,
     dump,
+
+    -- Functions on FDExprs
     (#==),
     (#\=),
     (#<),
-    (#*),
-    (#+),
-    (#-),
-    Expr,
-    ToExpr(..),
+    fromInt,
+    fromVar,
+    new,
+    news,
+    allDifferent,
+    labelling
     ) where
 
 import Prelude hiding (lookup)
@@ -51,11 +55,11 @@ newtype FDVar = FDVar { _unwrapFDVar :: Int } deriving (Ord, Eq)
 
 type VarSupply = FDVar
 
-data VarInfo = VarInfo { _delayedConstraints :: FDConstraint, _domain :: Domain }
+data VarInfo = VarInfo { _delayedConstraints :: !FDConstraint, _domain :: !Domain }
 
 type VarMap = Map FDVar VarInfo
 
-data FDState = FDState { _varSupply :: VarSupply, _varMap :: VarMap }
+data FDState = FDState { _varSupply :: !VarSupply, _varMap :: !VarMap }
 
 -- The FD monad
 type FD a = StateT FDState [] a
@@ -152,11 +156,11 @@ different = addBinaryConstraint $ \x y -> do
         update x (xv `difference` yv)
 
 -- Constrain a list of variables to all have different values.
-allDifferent :: [FDVar] -> FDConstraint
-allDifferent (x:xs) = do
+varsAllDifferent :: [FDVar] -> FDConstraint
+varsAllDifferent (x:xs) = do
     mapM_ (different x) xs
-    allDifferent xs
-allDifferent _ = return ()
+    varsAllDifferent xs
+varsAllDifferent _ = return ()
 
 -- Constrain one variable to have a value less than the value of another
 -- variable.
@@ -174,13 +178,11 @@ lessThan = addBinaryConstraint $ \x y -> do
 -- Get all solutions for a constraint without actually updating the
 -- constraint store.
 solutions :: FD a -> FD [a]
-solutions constraint = do
-    s <- get
-    return $ evalStateT constraint s
+solutions constraint = get <&> evalStateT constraint
 
 -- Label variables using a depth-first left-to-right search.
-labelling :: [FDVar] -> FD [Int]
-labelling = mapM label where
+varsLabelling :: [FDVar] -> FD [Int]
+varsLabelling = mapM label where
     label var = do
         vals <- lookup var
         val <- lift $ elems vals
@@ -190,34 +192,43 @@ labelling = mapM label where
 dump :: [FDVar] -> FD [Domain]
 dump = mapM lookup
 
-data Expr
+data FDExpr
     = Int !Int
     | Var !FDVar
-    | Plus !Expr !Expr
-    | Minus !Expr !Expr
-    | Times !Expr !Expr
-    | Negate !Expr
-    | Abs !Expr
+    | Plus !FDExpr !FDExpr
+    | Minus !FDExpr !FDExpr
+    | Times !FDExpr !FDExpr
+    | Negate !FDExpr
+    | Abs !FDExpr
+    | Signum !FDExpr
 
-new :: ToDomain a => a -> FD Expr
-new d = newVar d <&> Var
+instance Num FDExpr where
+    (+) = Plus
+    (-) = Minus
+    (*) = Times
+    negate = Negate
+    abs = Abs
+    signum = Signum
+    fromInteger = Int . fromInteger
 
-news :: ToDomain a => Int -> a -> FD [Expr]
+instance Enum FDExpr where  
+    toEnum = Int
+    fromEnum (Int n) = n
+        -- Warning: partial function!  But should be sufficient for ranges such as [1..] to work.
+
+fromInt :: Int -> FDExpr
+fromInt = Int
+
+fromVar :: FDVar -> FDExpr
+fromVar = Var
+
+new :: ToDomain a => a -> FD FDExpr
+new d = newVar d <&> fromVar
+
+news :: ToDomain a => Int -> a -> FD [FDExpr]
 news n d = replicateM n $ new d
 
-class ToExpr a where
-    toExpr :: a -> Expr
-
-instance ToExpr FDVar where
-    toExpr = Var
-
-instance ToExpr Int where
-    toExpr = Int
-
-instance ToExpr Expr where
-    toExpr = id
-
-interpret :: Expr -> FD FDVar
+interpret :: FDExpr -> FD FDVar
 interpret (Var v) = return v
 interpret (Int i) = newVar (i, i)
 interpret (Plus e0 e1) = interpretBinary (+) e0 e1
@@ -225,8 +236,9 @@ interpret (Minus e0 e1) = interpretBinary (-) e0 e1
 interpret (Times e0 e1) = interpretBinary (*) e0 e1
 interpret (Negate e) = interpretUnary negate e
 interpret (Abs e) = interpretUnary abs e
+interpret (Signum e) = interpretUnary signum e -- XXX could be implemented more efficiently if required.
 
-interpretBinary :: (Int -> Int -> Int) -> Expr -> Expr -> FD FDVar
+interpretBinary :: (Int -> Int -> Int) -> FDExpr -> FDExpr -> FD FDVar
 interpretBinary op e0 e1 = do
     v0 <- interpret e0
     v1 <- interpret e1
@@ -250,7 +262,7 @@ constrainBinary pred v v0 v1 = do
     guard $ not $ Domain.null d'
     when (d' /= d) $ update v d'
 
-interpretUnary :: (Int -> Int) -> Expr -> FD FDVar
+interpretUnary :: (Int -> Int) -> FDExpr -> FD FDVar
 interpretUnary op e0 = do
     v0 <- interpret e0
     d0 <- lookup v0
@@ -267,35 +279,29 @@ constrainUnary pred v v0 = do
     guard $ not $ Domain.null d'
     when (d' /= d) $ update v d'
 
-infixl 6 #+
-(#+) :: (ToExpr a, ToExpr b) => a -> b -> Expr
-a #+ b = Plus (toExpr a) (toExpr b)
-
-infixl 6 #-
-(#-) :: (ToExpr a, ToExpr b) => a -> b -> Expr
-a #- b = Minus (toExpr a) (toExpr b)
-
-infixl 7 #*
-(#*) :: (ToExpr a, ToExpr b) => a -> b -> Expr
-a #* b = Times (toExpr a) (toExpr b)
-
 infix 4 #==
-(#==) :: (ToExpr a, ToExpr b) => a -> b -> FDConstraint
+(#==) :: FDExpr -> FDExpr -> FDConstraint
 a #== b = do
-    v0 <- interpret (toExpr a)
-    v1 <- interpret (toExpr b)
+    v0 <- interpret a
+    v1 <- interpret b
     v0 `same` v1
 
 infix 4 #\=
-(#\=) :: (ToExpr a, ToExpr b) => a -> b -> FDConstraint
+(#\=) :: FDExpr -> FDExpr -> FDConstraint
 a #\= b = do
-    v0 <- interpret (toExpr a)
-    v1 <- interpret (toExpr b)
+    v0 <- interpret a
+    v1 <- interpret b
     v0 `different` v1
 
 infix 4 #<
-(#<) :: (ToExpr a, ToExpr b) => a -> b -> FDConstraint
+(#<) :: FDExpr -> FDExpr -> FDConstraint
 a #< b = do
-    v0 <- interpret (toExpr a)
-    v1 <- interpret (toExpr b)
+    v0 <- interpret a
+    v1 <- interpret b
     v0 `lessThan` v1
+
+allDifferent :: [FDExpr] -> FDConstraint
+allDifferent = varsAllDifferent <=< mapM interpret
+
+labelling :: [FDExpr] -> FD [Int]
+labelling = varsLabelling <=< mapM interpret
