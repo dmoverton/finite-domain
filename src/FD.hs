@@ -191,13 +191,13 @@ dump :: [FDVar] -> FD [Domain]
 dump = mapM lookup
 
 data Expr
-    = Int Int
-    | Var FDVar
-    | Plus Expr Expr
-    | Minus Expr Expr
-    | Times Expr Expr
-    | Negate Expr
-    | Abs Expr
+    = Int !Int
+    | Var !FDVar
+    | Plus !Expr !Expr
+    | Minus !Expr !Expr
+    | Times !Expr !Expr
+    | Negate !Expr
+    | Abs !Expr
 
 new :: ToDomain a => a -> FD Expr
 new d = newVar d <&> Var
