@@ -9,14 +9,13 @@ queens n = runFD $ do
     diagonals vars
     labelling vars
     
-diagonals :: [FDVar s] -> FD s ()
+diagonals :: [FDVar] -> FDConstraint
 diagonals [] = return ()
 diagonals (x:xs) = do
     zipWithM_ (diag x) xs [1..]
     diagonals xs
 
-diag :: FDVar s -> FDVar s -> Int -> FD s ()
+diag :: FDVar -> FDVar -> Int -> FDConstraint
 diag x y n = do
-    v <- newVar (n, n)
-    y #\= x #+ v
-    y #\= x #- v
+    y #\= x #+ n
+    y #\= x #- n
