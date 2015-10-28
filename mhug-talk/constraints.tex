@@ -400,12 +400,14 @@ instance Num FDExpr where
 
 \begin{frame}[fragile]
     \begin{code}
+-- Define new variables and return as expressions
 new :: ToDomain a => a -> FD FDExpr
-new d = newVar d <&> fromVar
+new d = newVar d <&> Var
 
 news :: ToDomain a => Int -> a -> FD [FDExpr]
 news n d = replicateM n $ new d
 
+-- Interpret an FDExpr and return an FDVar representing it
 interpret :: FDExpr -> FD FDVar
 interpret (Var v) = return v
 interpret (Int i) = newVar [i]
@@ -416,6 +418,34 @@ interpret (Negate e) = interpretUnary negate e
 interpret (Abs e) = interpretUnary abs e
 interpret (Signum e) = interpretUnary signum e
     \end{code}
+\end{frame}
+
+\begin{frame}[fragile]
+    \begin{minted}[fontsize=\footnotesize]{haskell}
+interpretBinary :: (Int -> Int -> Int) -> FDExpr -> FDExpr -> FD FDVar
+interpretBinary op e0 e1 = do
+    v0 <- interpret e0
+    v1 <- interpret e1
+    d0 <- lookup v0
+    d1 <- lookup v1
+    v <- newVar [n0 `op` n1 | n0 <- elems d0, n1 <- elems d1]
+    let pc  = constrainBinary (\n n0 n1 -> n == n0 `op` n1) v v0 v1
+        nc0 = constrainBinary (\n0 n n1 -> n == n0 `op` n1) v0 v v1
+        nc1 = constrainBinary (\n1 n n0 -> n == n0 `op` n1) v1 v v0
+    addConstraint v0 $ pc >> nc1
+    addConstraint v1 $ pc >> nc0
+    addConstraint v  $ nc0 >> nc1
+    return v
+
+constrainBinary :: (Int -> Int -> Int -> Bool) -> FDVar -> FDVar -> FDVar -> FDConstraint
+constrainBinary pred v v0 v1 = do
+    d <- lookup v
+    d0 <- lookup v0
+    d1 <- lookup v1
+    let d' = toDomain [n | n <- elems d, n0 <- elems d0, n1 <- elems d1, pred n n0 n1]
+    guard $ not $ Domain.null d'
+    when (d' /= d) $ update v d'
+    \end{minted}
 \end{frame}
 
 \begin{frame}[fragile]
@@ -503,5 +533,31 @@ sendMoreMoney = runFD $ do
 
     labelling vars
     \end{code}
+\end{frame}
+
+\section{Conclusion}
+\begin{frame}
+    \frametitle{Consclusion}
+    \begin{itemize}
+        \item Haskell can do constraint logic programming -- all you need is monads.
+            \pause
+        \item Advantages of Haskell
+            \begin{itemize}
+                    \pause
+                \item Awesomeness of Haskell.
+                    \pause
+                \item Type safety.
+                    \pause
+                \item Leverage libraries, such as monad combinators, in a very natural way.
+                    \pause
+            \end{itemize}
+        \item Disadvantages
+            \begin{itemize}
+                    \pause
+                \item Not full Prolog, e.g. missing unification between terms, multi-moded predicates.
+                    \pause
+                \item Some Prolog implementations have very powerful and efficient built-in solvers, which Haskell can't use.
+            \end{itemize}
+    \end{itemize}
 \end{frame}
 \end{document}
