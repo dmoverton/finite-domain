@@ -76,7 +76,7 @@
             \begin{itemize}
                 \item add constraints to the constraint store
                 \item constraint solver works behind the scenes to propagate constraints
-                \item Prolog's backtracking search mechanism to generate solutions
+                \item use Prolog's backtracking search mechanism to generate solutions
             \end{itemize}
         \item Advantages over pure logic programming:
             \begin{itemize}
@@ -91,33 +91,114 @@
 
 \begin{frame}[fragile]
     \frametitle{Finite domain constraints}
+\begin{itemize}
+    \item One of the most widely used varieties of constraint solver.
+        \pause
+    \item Variables range over a finite domain of integers.
+        \pause
+    \item Simple equality and inequality constraints: $=$, $\neq$, $<$, $>$, $\leq$, $\geq$
+        \pause
+    \item Also simple arithmetic expressions: $+$, $-$, $\times$, \texttt{abs}
+\end{itemize}
+\end{frame}
 
-\begin{prologcode}
+\begin{frame}[fragile]
+    \frametitle{Arc consistency}
+Solver uses an \emph{arc consistency algorithm}, e.g.\ AC-3
+\begin{itemize}
+    \item Constraint store holds the set of constraints to be checked.
+        \pause
+    \item For each constraint, the domains of the variables involved are checked to
+        ensure they are consistent with the contraint.
+        \pause
+    \item Any values in the domains that break consistency are removed.
+        \pause
+    \item If the domain of a variable changes then all other constraints involving that variable are
+        rechecked.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Example: $n$ queens in SWI-Prolog}
+
+\begin{minted}[fontsize=\small]{prolog}
 n_queens(N, Qs) :-
         length(Qs, N),
         Qs ins 1..N,
         safe_queens(Qs).
 
 safe_queens([]).
-safe_queens([Q|Qs]) :- safe_queens(Qs, Q, 1), safe_queens(Qs).
+safe_queens([Q|Qs]) :-
+    safe_queen(Qs, Q, 1),
+    safe_queens(Qs).
 
-safe_queens([], _, _).
-safe_queens([Q|Qs], Q0, D0) :-
+safe_queen([], _, _).
+safe_queen([Q|Qs], Q0, D0) :-
         Q0 #\= Q,
         abs(Q0 - Q) #\= D0,
         D1 #= D0 + 1,
-        safe_queens(Qs, Q0, D1).
-\end{prologcode}
-
+        safe_queen(Qs, Q0, D1).
+\end{minted}
 \end{frame}
 
 \section{Constraint programming in Haskell}
+
+\subsection{Basic equality and inequality}
 
 \begin{frame}[fragile]
     \frametitle{Constraint programming in Haskell}
 How can we do something similar in Haskell?\pause{}
 \textbf{Use a monad!}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Example: $n$ queens in SWI-Prolog and Haskell}
+
+\begin{columns}[t]
+\column[t]{0.33\paperwidth}
+\begin{minted}[fontsize=\footnotesize]{prolog}
+n_queens(N, Qs) :-
+        length(Qs, N),
+        Qs ins 1..N,
+        safe_queens(Qs).
+
+safe_queens([]).
+safe_queens([Q|Qs]) :-
+    safe_queen(Qs, Q, 1),
+    safe_queens(Qs).
+
+safe_queen([], _, _).
+safe_queen([Q|Qs], Q0, D0) :-
+        Q0 #\= Q,
+        abs(Q0 - Q) #\= D0,
+        D1 #= D0 + 1,
+        safe_queen(Qs, Q0, D1).
+\end{minted}
 \pause
+\column[t]{0.59\paperwidth}
+\begin{minted}[fontsize=\footnotesize]{haskell}
+nQueens :: Int -> FD [FDExpr]
+nQueens n = do
+    qs <- news n (1, n)
+    safeQueens qs
+    return qs
+
+safeQueens :: [FDExpr] -> FDConstraint
+safeQueens [] = return ()
+safeQueens (q : qs) = do
+    safeQueen qs q 1
+    safeQueens qs
+
+safeQueen :: [FDExpr] -> FDExpr -> FDExpr -> FDConstraint
+safeQueen [] _ _ = return ()
+safeQueen (q : qs) q0 d0 = do
+   q0 #\= q 
+   abs (q0 - q) #\= d0
+   safeQueen qs q0 (d0 + 1)
+\end{minted}
+\end{columns}
+\end{frame}
+\begin{frame}[fragile]
 \begin{itemize}
     \item List monad provides backtracking / search / multiple solutions.
         \pause
@@ -125,67 +206,302 @@ How can we do something similar in Haskell?\pause{}
         \pause
 \end{itemize}
 \begin{code}
--- The FD monad
-newtype FD s a = FD { unwrapFD :: StateT (FDState s) [] a }
-    deriving (Monad, MonadPlus, MonadState (FDState s))
+type FD a = StateT FDState [] a
 \end{code}
 \pause
 \begin{code}
--- Convenient alias for constraint type
-type FDConstraint s = FD s ()
+type FDConstraint = FD ()
 \end{code}
 \pause
 \begin{code}
--- Run the FD monad and produce a lazy list of possible solutions.
-runFD :: (forall s . FD s a) -> [a]
-runFD fd = evalStateT (unwrapFD fd) initState
+runFD :: FD a -> [a]
+runFD fd = evalStateT fd initState
 \end{code}
 \end{frame}
 
 \begin{frame}[fragile]
 \begin{code}
--- FD variables
-newtype FDVar s = FDVar { unFDVar :: Int } deriving (Ord, Eq)
+newtype FDVar = FDVar { _unwrapFDVar :: Int } deriving (Ord, Eq)
 
-type VarSupply s = FDVar s
+type VarSupply = FDVar
 
 data Domain
     = Set IntSet
     | Range Int Int
 
-data VarInfo s = VarInfo
-     { delayedConstraints :: FD s (), domain :: Domain }
+data VarInfo = VarInfo { _delayedConstraints :: !FDConstraint
+                       , _domain :: !Domain }
 
-type VarMap s = Map (FDVar s) (VarInfo s)
+type VarMap = Map FDVar VarInfo
 
-data FDState s = FDState
-     { varSupply :: VarSupply s, varMap :: VarMap s }
+data FDState = FDState { _varSupply :: !VarSupply, _varMap :: !VarMap }
 
-initState :: FDState s
-initState = FDState { varSupply = FDVar 0, varMap = Map.empty }
+initState :: FDState
+initState = FDState { _varSupply = FDVar 0, _varMap = Map.empty }
 \end{code}
 \end{frame}
 
 \begin{frame}[fragile]
 \begin{code}
-nQueens :: Int -> FD s [FDVar s]
-nQueens n = do
-    qs <- newVars n (1, n)
-    safeQueens qs
-    return qs
+newVar :: ToDomain a => a -> FD FDVar
+newVar d = do
+    v <- use varSupply
+    varSupply . unwrapFDVar += 1
+    let vi = initVarInfo & domain .~ toDomain d
+    varMap . at v ?= vi
+    return v
 
-safeQueens :: [FDVar s] -> FDConstraint s
-safeQueens [] = return ()
-safeQueens (q : qs) = safeQueen qs q 1 >> safeQueens qs
-
-safeQueen :: [FDVar s] -> FDVar s -> Int -> FDConstraint s
-safeQueen [] _ _ = return ()
-safeQueen (q : qs) q0 d = do
-   q0 ./=. q 
-   q ./=. q0 .+. d
-   q ./=. q0 .-. d
-   safeQueen qs q0 (d + 1)
+newVars :: ToDomain a => Int -> a -> FD [FDVar]
+newVars n d = replicateM n (newVar d)
 \end{code}
 \end{frame}
 
+\begin{frame}[fragile]
+\begin{code}
+-- Look up the current domain of a variable.
+lookup :: FDVar -> FD Domain
+lookup x =
+    use $ varMap . ix x . domain
+
+-- Update the domain of a variable and fire all delayed constraints
+-- associated with that variable.
+update :: FDVar -> Domain -> FDConstraint
+update x i = do
+    vi <- use $ varMap . ix x
+    varMap . ix x . domain .= i
+    vi ^. delayedConstraints
+
+-- Add a new constraint for a variable to the constraint store.
+addConstraint :: FDVar -> FDConstraint -> FDConstraint
+addConstraint x constraint =
+    varMap . ix x . delayedConstraints %= (>> constraint)
+\end{code}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{code}
+-- Useful helper function for adding binary constraints between FDVars.
+type BinaryConstraint = FDVar -> FDVar -> FDConstraint
+addBinaryConstraint :: BinaryConstraint -> BinaryConstraint
+addBinaryConstraint f x y = do
+    let constraint  = f x y
+    constraint
+    addConstraint x constraint
+    addConstraint y constraint
+
+-- Constrain two variables to have the same value.
+same :: FDVar -> FDVar -> FDConstraint
+same = addBinaryConstraint $ \x y -> do
+    xv <- lookup x
+    yv <- lookup y
+    let i = xv `intersection` yv
+    guard $ not $ Domain.null i
+    when (i /= xv) $ update x i
+    when (i /= yv) $ update y i
+\end{code}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{code}
+-- Constrain two variables to have different values.
+different :: FDVar -> FDVar -> FDConstraint
+different = addBinaryConstraint $ \x y -> do
+    xv <- lookup x
+    yv <- lookup y
+    guard $ not (isSingleton xv) || not (isSingleton yv) || xv /= yv
+    when (isSingleton xv && xv `isSubsetOf` yv) $
+        update y (yv `difference` xv)
+    when (isSingleton yv && yv `isSubsetOf` xv) $
+        update x (xv `difference` yv)
+
+-- Constrain a list of variables to all have different values.
+varsAllDifferent :: [FDVar] -> FDConstraint
+varsAllDifferent (x:xs) = do
+    mapM_ (different x) xs
+    varsAllDifferent xs
+varsAllDifferent _ = return ()
+\end{code}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Labelling}
+\emph{Labelling} is used to obtain valid solutions for a set of variables.
+The embedded list monad allows us to search for and return all possible solutions.
+\begin{code}
+-- Label variables using a depth-first left-to-right search.
+varsLabelling :: [FDVar] -> FD [Int]
+varsLabelling = mapM label where
+    label var = do
+        vals <- lookup var
+        val <- lift $ elems vals
+        var `hasValue` val
+        return val
+\end{code}
+\end{frame}
+
+\begin{frame}[fragile]
+We now have enough to solve Sudoku!
+\begin{code}
+sudoku :: [Int] -> [[Int]]
+sudoku puzzle = runFD $ do
+    vars <- newVars 81 (1, 9)
+    zipWithM_ (\x n -> when (n > 0) (x `hasValue` n)) vars puzzle
+    mapM_ varsAllDifferent (rows vars)
+    mapM_ varsAllDifferent (columns vars)
+    mapM_ varsAllDifferent (boxes vars)
+    varsLabelling vars
+
+rows, columns, boxes :: [a] -> [[a]]
+rows = chunk 9
+columns = transpose . rows
+boxes = concat . map (map concat . transpose) . chunk 3 . chunk 3 . chunk 3
+
+chunk :: Int -> [a] -> [[a]]
+chunk _ [] = []
+chunk n xs = ys : chunk n zs where
+    (ys, zs) = splitAt n xs
+\end{code}
+\end{frame}
+
+\subsection{Arithmetic expressions}
+
+\begin{frame}[fragile]
+    \frametitle{Arithemtic expressions}
+    \begin{itemize}
+        \item So far we have seen how to declare contraint variables and define simple equality constraints
+            between them.
+        \item We also want to be able to write constraints involving simple arithmetic expressions.
+    \end{itemize}
+\end{frame}
+\begin{frame}[fragile]
+    \begin{code}
+data FDExpr
+    = Int !Int
+    | Var !FDVar
+    | Plus !FDExpr !FDExpr
+    | Minus !FDExpr !FDExpr
+    | Times !FDExpr !FDExpr
+    | Negate !FDExpr
+    | Abs !FDExpr
+    | Signum !FDExpr
+
+-- Num instance allows us to use the usual arithmetic operators
+-- and integer literals
+instance Num FDExpr where
+    (+) = Plus
+    (-) = Minus
+    (*) = Times
+    negate = Negate
+    abs = Abs
+    signum = Signum
+    fromInteger = Int . fromInteger
+    \end{code}
+\end{frame}
+
+\begin{frame}[fragile]
+    \begin{code}
+new :: ToDomain a => a -> FD FDExpr
+new d = newVar d <&> fromVar
+
+news :: ToDomain a => Int -> a -> FD [FDExpr]
+news n d = replicateM n $ new d
+
+interpret :: FDExpr -> FD FDVar
+interpret (Var v) = return v
+interpret (Int i) = newVar [i]
+interpret (Plus e0 e1) = interpretBinary (+) e0 e1
+interpret (Minus e0 e1) = interpretBinary (-) e0 e1
+interpret (Times e0 e1) = interpretBinary (*) e0 e1
+interpret (Negate e) = interpretUnary negate e
+interpret (Abs e) = interpretUnary abs e
+interpret (Signum e) = interpretUnary signum e
+    \end{code}
+\end{frame}
+
+\begin{frame}[fragile]
+    \begin{code}
+infix 4 #\=
+(#\=) :: FDExpr -> FDExpr -> FDConstraint
+a #\= b = do
+    v0 <- interpret a
+    v1 <- interpret b
+    v0 `different` v1
+
+allDifferent :: [FDExpr] -> FDConstraint
+allDifferent = varsAllDifferent <=< mapM interpret
+
+labelling :: [FDExpr] -> FD [Int]
+labelling = varsLabelling <=< mapM interpret
+    \end{code}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Example: $n$ queens in SWI-Prolog and Haskell}
+
+\begin{columns}[t]
+\column[t]{0.33\paperwidth}
+\begin{minted}[fontsize=\footnotesize]{prolog}
+n_queens(N, Qs) :-
+        length(Qs, N),
+        Qs ins 1..N,
+        safe_queens(Qs).
+
+safe_queens([]).
+safe_queens([Q|Qs]) :-
+    safe_queen(Qs, Q, 1),
+    safe_queens(Qs).
+
+safe_queen([], _, _).
+safe_queen([Q|Qs], Q0, D0) :-
+        Q0 #\= Q,
+        abs(Q0 - Q) #\= D0,
+        D1 #= D0 + 1,
+        safe_queen(Qs, Q0, D1).
+\end{minted}
+\pause
+\column[t]{0.59\paperwidth}
+\begin{minted}[fontsize=\footnotesize]{haskell}
+nQueens :: Int -> FD [FDExpr]
+nQueens n = do
+    qs <- news n (1, n)
+    safeQueens qs
+    return qs
+
+safeQueens :: [FDExpr] -> FDConstraint
+safeQueens [] = return ()
+safeQueens (q : qs) = do
+    safeQueen qs q 1
+    safeQueens qs
+
+safeQueen :: [FDExpr] -> FDExpr -> FDExpr -> FDConstraint
+safeQueen [] _ _ = return ()
+safeQueen (q : qs) q0 d0 = do
+   q0 #\= q 
+   abs (q0 - q) #\= d0
+   safeQueen qs q0 (d0 + 1)
+\end{minted}
+\end{columns}
+\end{frame}
+\begin{frame}[fragile]
+    \begin{verbatim}
+        SEND
+     +  MORE
+     -------
+       MONEY
+    \end{verbatim}
+
+    \begin{code}
+sendMoreMoney = runFD $ do
+    vars@[s, e, n, d, m, o, r, y] <- news 8 (0, 9)
+    s #\= 0
+    m #\= 0
+    allDifferent vars
+
+    1000 * s + 100 * e + 10 * n + d
+       + 1000 * m + 100 * o + 10 * r + e
+       #== 10000 * m + 1000 * o + 100 * n + 10 * e + y
+
+    labelling vars
+    \end{code}
+\end{frame}
 \end{document}
