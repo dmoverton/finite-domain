@@ -17,5 +17,6 @@ diagonals (x:xs) = do
 
 diag :: FDVar s -> FDVar s -> Int -> FD s ()
 diag x y n = do
-    y #\= x #+ fromIntegral n
-    y #\= x #- fromIntegral n
+    v <- newVar (n, n)
+    y #\= x #+ v
+    y #\= x #- v
