@@ -19,5 +19,4 @@ safeQueen [] _ _ = return ()
 safeQueen (q : qs) q0 d0 = do
    q0 #\= q 
    abs (q0 - q) #\= d0
-   d1 #== d0 + 1
-   safeQueen qs q0 d1
+   safeQueen qs q0 (d0 + 1)
