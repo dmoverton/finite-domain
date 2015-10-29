@@ -48,7 +48,9 @@ main = do
     printSudoku hard2
     putStrLn "8 Queens"
     print $ runFD $ nQueens 8 >>= labelling
-    test
+    -- putStrLn "send + more = money"
+    -- print $ zip ['s', 'e', 'n', 'd', 'm', 'o', 'r', 'y'] sendMoreMoney
+
 
 test = do
     putStrLn "test"

@@ -116,11 +116,29 @@ Solver uses an \emph{arc consistency algorithm}, e.g.\ AC-3
     \item If the domain of a variable changes then all other constraints involving that variable are
         rechecked.
 \end{itemize}
+\pause
+\begin{example}
+\begin{displaymath}
+    \begin{array}{c}
+    x \in \{1, 2, 3\} ~~\land~~ y \in \{1, 2, 3\} \\
+    \pause
+    \textrm{add constraint~} x < y \\
+    \pause
+    \Rightarrow ~~~ x \in \{1, 2\} ~~\land~~ y \in \{2, 3\} \\
+    \pause
+    \textrm{add constraint~} y = 2 \\
+    \pause
+        \Rightarrow ~~~ x \in \{1\} ~~\land~~ y \in \{2\}
+    \end{array}
+\end{displaymath}
+\end{example}
 \end{frame}
 
 \begin{frame}[fragile]
     \frametitle{Example: $n$ queens in SWI-Prolog}
 
+\begin{columns}[t]
+\column[c]{0.35\paperwidth}
 \begin{minted}[fontsize=\small]{prolog}
 n_queens(N, Qs) :-
         length(Qs, N),
@@ -139,6 +157,9 @@ safe_queen([Q|Qs], Q0, D0) :-
         D1 #= D0 + 1,
         safe_queen(Qs, Q0, D1).
 \end{minted}
+\column[c]{0.5\paperwidth}
+\includegraphics[width=0.45\paperwidth]{8queens.png}
+\end{columns}
 \end{frame}
 
 \section{Constraint programming in Haskell}
@@ -214,6 +235,7 @@ type FDConstraint = FD ()
 \end{code}
 \pause
 \begin{code}
+-- Run the monad to obtain a list of solutions.
 runFD :: FD a -> [a]
 runFD fd = evalStateT fd initState
 \end{code}
@@ -370,6 +392,7 @@ chunk n xs = ys : chunk n zs where
     \begin{itemize}
         \item So far we have seen how to declare contraint variables and define simple equality constraints
             between them.
+            \pause
         \item We also want to be able to write constraints involving simple arithmetic expressions.
     \end{itemize}
 \end{frame}
@@ -384,6 +407,9 @@ data FDExpr
     | Negate !FDExpr
     | Abs !FDExpr
     | Signum !FDExpr
+    \end{code}
+\pause
+    \begin{code}
 
 -- Num instance allows us to use the usual arithmetic operators
 -- and integer literals
@@ -406,6 +432,9 @@ new d = newVar d <&> Var
 
 news :: ToDomain a => Int -> a -> FD [FDExpr]
 news n d = replicateM n $ new d
+    \end{code}
+    \pause
+    \begin{code}
 
 -- Interpret an FDExpr and return an FDVar representing it
 interpret :: FDExpr -> FD FDVar
