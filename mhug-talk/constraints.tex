@@ -58,7 +58,9 @@
     \pause
     \begin{itemize}
         \item A set of \emph{constraint variables} over a \emph{domain}, e.g. Booleans, integers, reals, finite domain.
+    \pause
         \item A set of \emph{constraints} between those variables.
+    \pause
         \item A \emph{solver} to find solutions to the constraints, i.e. assignments of variables to values in the domain such that all constraints are satisfied.
     \end{itemize}
     \pause
@@ -71,17 +73,24 @@
     \frametitle{Constraint logic programming}
     \begin{itemize}
         \item Constraint programming and logic programming work well together.
+    \pause
         \item Many Prolog implementations have built in constraint solvers.
+    \pause
         \item Basic idea:
             \begin{itemize}
                 \item add constraints to the constraint store
+    \pause
                 \item constraint solver works behind the scenes to propagate constraints
+    \pause
                 \item use Prolog's backtracking search mechanism to generate solutions
+    \pause
             \end{itemize}
         \item Advantages over pure logic programming:
             \begin{itemize}
                 \item ``constrain-and-generate'' rather than ``generate-and-test''
+    \pause
                 \item constraint solver can greatly reduce the search space required compared to Prolog's built-in depth-first-search
+    \pause
                 \item much more powerful than relying on just unification and backtracking
             \end{itemize}
     \end{itemize}
