@@ -1,11 +1,4 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE IncoherentInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
 module FD (
     -- Types
     FD,           -- Monad for finite domain constraint solver

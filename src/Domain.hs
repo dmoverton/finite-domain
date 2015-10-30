@@ -1,6 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE IncoherentInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
 module Domain (
     Domain,
     ToDomain,
