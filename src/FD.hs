@@ -75,10 +75,12 @@ initState = FDState { _varSupply = FDVar 0, _varMap = Map.empty }
 initVarInfo :: VarInfo
 initVarInfo = VarInfo { _delayedConstraints = return (), _domain = maxDomain }
 
+instance Semigroup VarInfo where
+    vi0 <> vi = vi0 & delayedConstraints %~ (>> vi ^. delayedConstraints)
+                         & domain <>~ (vi ^. domain)
+
 instance Monoid VarInfo where
     mempty = initVarInfo
-    mappend vi0 vi = vi0 & delayedConstraints %~ (>> vi ^. delayedConstraints)
-                         & domain <>~ (vi ^. domain)
 
 -- Get a new FDVar
 newVar :: ToDomain a => a -> FD FDVar
